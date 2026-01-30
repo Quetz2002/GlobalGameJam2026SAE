@@ -4,15 +4,19 @@ using System.IO;
 
 public class PlatformerBootstrap
 {
-    [MenuItem("Tools/Platformer/Create Full Project Setup")]
-    public static void CreateProject()
+    [MenuItem("Tools/Platformer/Create FULL Project (Scripts + Prefabs + Level)")]
+    public static void CreateFullProject()
     {
         CreateFolders();
         CreateScripts();
+        CreatePrefabs();
 
         AssetDatabase.Refresh();
-        Debug.Log("✅ Platformer project fully bootstrapped!");
+
+        Debug.Log("🔥 FULL PLATFORMER PROJECT CREATED!");
     }
+
+    // ================= FOLDERS =================
 
     static void CreateFolders()
     {
@@ -25,37 +29,113 @@ public class PlatformerBootstrap
             "Assets/Scripts/Camera",
             "Assets/Scripts/Setup",
             "Assets/Prefabs",
+            "Assets/Prefabs/Player",
+            "Assets/Prefabs/Enemies",
+            "Assets/Prefabs/Level",
+            "Assets/Prefabs/Projectiles",
             "Assets/Scenes",
             "Assets/Art",
-            "Assets/Audio"
+            "Assets/Audio",
+            "Assets/Editor"
         };
 
-        foreach (var folder in folders)
-        {
-            if (!Directory.Exists(folder))
-                Directory.CreateDirectory(folder);
-        }
+        foreach (var f in folders)
+            if (!Directory.Exists(f))
+                Directory.CreateDirectory(f);
     }
+
+    // ================= SCRIPTS =================
 
     static void CreateScripts()
     {
-        CreateScript("Assets/Scripts/Player/PlayerController.cs", PlayerControllerCode());
-        CreateScript("Assets/Scripts/Player/PlayerCombat.cs", PlayerCombatCode());
-        CreateScript("Assets/Scripts/Player/PlayerMeleeCombo.cs", PlayerMeleeComboCode());
-        CreateScript("Assets/Scripts/Enemies/EnemyBase.cs", EnemyBaseCode());
-        CreateScript("Assets/Scripts/Camera/SimpleCameraFollow.cs", CameraCode());
-        CreateScript("Assets/Scripts/Setup/GameSetup.cs", GameSetupCode());
+        Create("Assets/Scripts/Player/PlayerController.cs", PlayerController());
+        Create("Assets/Scripts/Player/PlayerCombat.cs", PlayerCombat());
+        Create("Assets/Scripts/Player/PlayerMeleeCombo.cs", PlayerCombo());
+        Create("Assets/Scripts/Enemies/EnemyBase.cs", EnemyBase());
+        Create("Assets/Scripts/Camera/SimpleCameraFollow.cs", CameraFollow());
+        Create("Assets/Scripts/Setup/GameSetup.cs", GameSetup());
     }
 
-    static void CreateScript(string path, string content)
+    static void Create(string path, string content)
     {
-        if (File.Exists(path)) return;
-        File.WriteAllText(path, content);
+        if (!File.Exists(path))
+            File.WriteAllText(path, content);
     }
+
+    // ================= PREFABS =================
+
+    static void CreatePrefabs()
+    {
+        // Player
+        GameObject player = new GameObject("Player");
+        var rb = player.AddComponent<Rigidbody2D>();
+        rb.gravityScale = 2;
+        rb.freezeRotation = true;
+
+        player.AddComponent<BoxCollider2D>();
+        player.AddComponent<PlayerController>();
+        player.AddComponent<PlayerCombat>();
+        player.AddComponent<PlayerMeleeCombo>();
+
+        SavePrefab(player, "Assets/Prefabs/Player/Player.prefab");
+
+        // Enemy
+        GameObject enemy = new GameObject("Enemy");
+        var erb = enemy.AddComponent<Rigidbody2D>();
+        erb.gravityScale = 2;
+        erb.freezeRotation = true;
+
+        enemy.AddComponent<BoxCollider2D>();
+        enemy.AddComponent<EnemyBase>();
+
+        SavePrefab(enemy, "Assets/Prefabs/Enemies/Enemy.prefab");
+
+        // Platform
+        GameObject platform = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject.DestroyImmediate(platform.GetComponent<BoxCollider>());
+        platform.AddComponent<BoxCollider2D>();
+        platform.transform.localScale = new Vector3(3, .5f, 1);
+
+        SavePrefab(platform, "Assets/Prefabs/Level/Platform.prefab");
+
+        // Bullet
+        GameObject bullet = new GameObject("Bullet");
+        bullet.AddComponent<Rigidbody2D>();
+        bullet.AddComponent<BoxCollider2D>();
+
+        SavePrefab(bullet, "Assets/Prefabs/Projectiles/Bullet.prefab");
+
+        // Camera
+        GameObject cam = new GameObject("Main Camera");
+        cam.AddComponent<Camera>().orthographic = true;
+        cam.AddComponent<SimpleCameraFollow>();
+
+        SavePrefab(cam, "Assets/Prefabs/Camera.prefab");
+
+      GameObject.DestroyImmediate(player);
+      GameObject.DestroyImmediate(enemy);
+      GameObject.DestroyImmediate(platform);
+      GameObject.DestroyImmediate(bullet);
+      GameObject.DestroyImmediate(cam);
+    }
+
+    static void SavePrefab(GameObject obj, string path)
+    {
+        PrefabUtility.SaveAsPrefabAsset(obj, path);
+    }
+
+    static void SafeDestroy(GameObject obj)
+    {
+        if (Application.isEditor)
+            GameObject.DestroyImmediate(obj);
+        else
+            GameObject.Destroy(obj);
+    }
+
 
     // ================= CODE TEMPLATES =================
 
-    static string PlayerControllerCode() => @"
+    static string PlayerController() => @"
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
@@ -64,14 +144,11 @@ public class PlayerController : MonoBehaviour
     public float jumpForce = 14f;
 
     public float laneDistance = 1.5f;
-    int currentLane = 0;
+    int lane = 0;
 
     Rigidbody2D rb;
 
-    void Awake()
-    {
-        rb = GetComponent<Rigidbody2D>();
-    }
+    void Awake(){ rb = GetComponent<Rigidbody2D>(); }
 
     void Update()
     {
@@ -81,31 +158,28 @@ public class PlayerController : MonoBehaviour
         if (Input.GetButtonDown(""Jump""))
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
 
-        if (Input.GetKeyDown(KeyCode.UpArrow))
-            ChangeLane(1);
-
-        if (Input.GetKeyDown(KeyCode.DownArrow))
-            ChangeLane(-1);
+        if (Input.GetKeyDown(KeyCode.UpArrow)) ChangeLane(1);
+        if (Input.GetKeyDown(KeyCode.DownArrow)) ChangeLane(-1);
     }
 
     void ChangeLane(int dir)
     {
-        currentLane = Mathf.Clamp(currentLane + dir, -1, 1);
-        Vector3 pos = transform.position;
-        pos.z = currentLane * laneDistance;
-        transform.position = pos;
+        lane = Mathf.Clamp(lane + dir, -1, 1);
+        Vector3 p = transform.position;
+        p.z = lane * laneDistance;
+        transform.position = p;
     }
 }
 ";
 
-    static string PlayerCombatCode() => @"
+    static string PlayerCombat() => @"
 using UnityEngine;
 
 public class PlayerCombat : MonoBehaviour
 {
     public GameObject bulletPrefab;
     public Transform firePoint;
-    public float bulletSpeed = 15f;
+    public float speed = 15f;
 
     void Update()
     {
@@ -115,56 +189,55 @@ public class PlayerCombat : MonoBehaviour
 
     void Shoot()
     {
-        if (!bulletPrefab || !firePoint) return;
+        if(!bulletPrefab || !firePoint) return;
 
-        GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
-        Rigidbody2D rb = bullet.GetComponent<Rigidbody2D>();
+        GameObject b = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
+        Rigidbody2D rb = b.GetComponent<Rigidbody2D>();
 
         float dir = transform.localScale.x > 0 ? 1 : -1;
-        rb.velocity = Vector2.right * bulletSpeed * dir;
+        rb.velocity = Vector2.right * speed * dir;
     }
 }
 ";
 
-    static string PlayerMeleeComboCode() => @"
+    static string PlayerCombo() => @"
 using UnityEngine;
 
 public class PlayerMeleeCombo : MonoBehaviour
 {
-    public Transform meleePoint;
-    public float radius = 0.6f;
+    public Transform point;
+    public float radius = .6f;
     public LayerMask enemyLayer;
 
-    int combo = 0;
+    int combo;
     float timer;
-    public float resetTime = 0.6f;
+    public float reset = .6f;
 
     void Update()
     {
         timer -= Time.deltaTime;
-        if (timer <= 0) combo = 0;
+        if(timer <= 0) combo = 0;
 
-        if (Input.GetKeyDown(KeyCode.C))
+        if(Input.GetKeyDown(KeyCode.C))
             Attack();
     }
 
     void Attack()
     {
-        timer = resetTime;
+        timer = reset;
         combo = (combo + 1) % 3;
 
-        Collider2D[] hits = Physics2D.OverlapCircleAll(meleePoint.position, radius, enemyLayer);
-
-        foreach (var hit in hits)
+        Collider2D[] hits = Physics2D.OverlapCircleAll(point.position, radius, enemyLayer);
+        foreach(var h in hits)
         {
-            EnemyBase e = hit.GetComponent<EnemyBase>();
-            if (e) e.TakeDamage(1);
+            EnemyBase e = h.GetComponent<EnemyBase>();
+            if(e) e.TakeDamage(1);
         }
     }
 }
 ";
 
-    static string EnemyBaseCode() => @"
+    static string EnemyBase() => @"
 using UnityEngine;
 
 public class EnemyBase : MonoBehaviour
@@ -177,37 +250,26 @@ public class EnemyBase : MonoBehaviour
     bool right = true;
     Rigidbody2D rb;
 
-    void Awake()
-    {
-        rb = GetComponent<Rigidbody2D>();
-    }
+    void Awake(){ rb = GetComponent<Rigidbody2D>(); }
 
     void Update()
-    {
-        Patrol();
-    }
-
-    void Patrol()
     {
         float dir = right ? 1 : -1;
         rb.velocity = new Vector2(dir * speed, rb.velocity.y);
 
-        if (right && transform.position.x >= rightPoint.position.x)
-            right = false;
-
-        if (!right && transform.position.x <= leftPoint.position.x)
-            right = true;
+        if(right && transform.position.x >= rightPoint.position.x) right = false;
+        if(!right && transform.position.x <= leftPoint.position.x) right = true;
     }
 
     public void TakeDamage(int dmg)
     {
         hp -= dmg;
-        if (hp <= 0) Destroy(gameObject);
+        if(hp <= 0) Destroy(gameObject);
     }
 }
 ";
 
-    static string CameraCode() => @"
+    static string CameraFollow() => @"
 using UnityEngine;
 
 public class SimpleCameraFollow : MonoBehaviour
@@ -218,103 +280,50 @@ public class SimpleCameraFollow : MonoBehaviour
 
     void LateUpdate()
     {
-        if (!target) return;
+        if(!target) return;
         transform.position = Vector3.Lerp(transform.position, target.position + offset, smooth * Time.deltaTime);
     }
 }
 ";
 
-    static string GameSetupCode() => @"
+    static string GameSetup() => @"
 using UnityEngine;
 
 public class GameSetup : MonoBehaviour
 {
     public int sections = 5;
-    public float sectionLength = 12f;
+    public float length = 12f;
     public float laneDistance = 1.5f;
     public int enemiesPerSection = 2;
 
+    public GameObject playerPrefab;
+    public GameObject enemyPrefab;
+    public GameObject platformPrefab;
+
     void Start()
     {
-        CreatePlayer();
-        SetupCamera();
-        GenerateLevel();
-    }
+        Instantiate(playerPrefab, new Vector3(0,2,0), Quaternion.identity);
+        Camera.main.GetComponent<SimpleCameraFollow>().target = GameObject.Find(""Player"").transform;
 
-    void CreatePlayer()
-    {
-        GameObject p = new GameObject(""Player"");
-        p.transform.position = new Vector3(0,2,0);
-
-        var rb = p.AddComponent<Rigidbody2D>();
-        rb.gravityScale = 2;
-        rb.freezeRotation = true;
-
-        p.AddComponent<BoxCollider2D>();
-        p.AddComponent<PlayerController>();
-        p.AddComponent<PlayerCombat>();
-        p.AddComponent<PlayerMeleeCombo>();
-    }
-
-    void SetupCamera()
-    {
-        Camera cam = Camera.main ?? new GameObject(""Main Camera"").AddComponent<Camera>();
-        cam.orthographic = true;
-        cam.orthographicSize = 5;
-
-        var follow = cam.gameObject.AddComponent<SimpleCameraFollow>();
-        follow.target = GameObject.Find(""Player"").transform;
-    }
-
-    void GenerateLevel()
-    {
         float x = 0;
 
         for(int i=0;i<sections;i++)
         {
             for(int lane=-1; lane<=1; lane++)
             {
-                GameObject g = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                g.transform.localScale = new Vector3(sectionLength, .5f, 1);
-                g.transform.position = new Vector3(x + sectionLength/2, 0, lane * laneDistance);
-
-                Destroy(g.GetComponent<BoxCollider>());
-                g.AddComponent<BoxCollider2D>();
+                GameObject g = Instantiate(platformPrefab);
+                g.transform.position = new Vector3(x + length/2, 0, lane * laneDistance);
+                g.transform.localScale = new Vector3(length,.5f,1);
             }
 
-            SpawnEnemies(x);
-            x += sectionLength;
-        }
-    }
+            for(int e=0;e<enemiesPerSection;e++)
+            {
+                Instantiate(enemyPrefab,
+                    new Vector3(x + Random.Range(2,length-2),1, Random.Range(-1,2)*laneDistance),
+                    Quaternion.identity);
+            }
 
-    void SpawnEnemies(float startX)
-    {
-        for(int i=0;i<enemiesPerSection;i++)
-        {
-            GameObject e = new GameObject(""Enemy"");
-
-            e.transform.position = new Vector3(
-                startX + Random.Range(2, sectionLength-2),
-                1,
-                Random.Range(-1,2) * laneDistance
-            );
-
-            var rb = e.AddComponent<Rigidbody2D>();
-            rb.gravityScale = 2;
-            rb.freezeRotation = true;
-
-            e.AddComponent<BoxCollider2D>();
-
-            EnemyBase eb = e.AddComponent<EnemyBase>();
-
-            GameObject l = new GameObject(""LeftPoint"");
-            GameObject r = new GameObject(""RightPoint"");
-
-            l.transform.position = e.transform.position + Vector3.left * 2;
-            r.transform.position = e.transform.position + Vector3.right * 2;
-
-            eb.leftPoint = l.transform;
-            eb.rightPoint = r.transform;
+            x += length;
         }
     }
 }
