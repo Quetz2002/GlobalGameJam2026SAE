@@ -1,6 +1,7 @@
 ﻿using UnityEditor;
 using UnityEngine;
 using System.IO;
+using System.Collections.Generic;
 
 public class PlatformerBootstrap
 {
@@ -12,7 +13,6 @@ public class PlatformerBootstrap
         CreatePrefabs();
 
         AssetDatabase.Refresh();
-
         Debug.Log("🔥 FULL PLATFORMER PROJECT CREATED!");
     }
 
@@ -48,11 +48,18 @@ public class PlatformerBootstrap
 
     static void CreateScripts()
     {
+        Create("Assets/Scripts/Core/GameManager.cs", GameManagerCode());
+        Create("Assets/Scripts/Core/HealthBase.cs", HealthBaseCode());
+        Create("Assets/Scripts/Core/PoolManager.cs", PoolManagerCode());
+
         Create("Assets/Scripts/Player/PlayerController.cs", PlayerController());
         Create("Assets/Scripts/Player/PlayerCombat.cs", PlayerCombat());
         Create("Assets/Scripts/Player/PlayerMeleeCombo.cs", PlayerCombo());
+
         Create("Assets/Scripts/Enemies/EnemyBase.cs", EnemyBase());
+
         Create("Assets/Scripts/Camera/SimpleCameraFollow.cs", CameraFollow());
+
         Create("Assets/Scripts/Setup/GameSetup.cs", GameSetup());
     }
 
@@ -111,12 +118,14 @@ public class PlatformerBootstrap
         cam.AddComponent<SimpleCameraFollow>();
 
         SavePrefab(cam, "Assets/Prefabs/Camera.prefab");
-
-      GameObject.DestroyImmediate(player);
-      GameObject.DestroyImmediate(enemy);
-      GameObject.DestroyImmediate(platform);
-      GameObject.DestroyImmediate(bullet);
-      GameObject.DestroyImmediate(cam);
+        EditorApplication.delayCall += () =>
+        {
+            SafeDestroy(player);
+            SafeDestroy(enemy);
+            SafeDestroy(platform);
+            SafeDestroy(bullet);
+            SafeDestroy(cam);
+        };
     }
 
     static void SavePrefab(GameObject obj, string path)
@@ -126,14 +135,104 @@ public class PlatformerBootstrap
 
     static void SafeDestroy(GameObject obj)
     {
+        if (obj == null) return;
+
         if (Application.isEditor)
-            GameObject.DestroyImmediate(obj);
+            Object.DestroyImmediate(obj);
         else
-            GameObject.Destroy(obj);
+            Object.Destroy(obj);
     }
 
 
-    // ================= CODE TEMPLATES =================
+    // ================= CORE =================
+
+    static string GameManagerCode() => @"
+using UnityEngine;
+
+public class GameManager : MonoBehaviour
+{
+    public static GameManager Instance;
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    public void RestartGame()
+    {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+    }
+}
+";
+
+    static string HealthBaseCode() => @"
+using UnityEngine;
+
+public class HealthBase : MonoBehaviour
+{
+    public int maxHp = 3;
+    protected int currentHp;
+
+    protected virtual void Awake()
+    {
+        currentHp = maxHp;
+    }
+
+    public virtual void TakeDamage(int amount)
+    {
+        currentHp -= amount;
+        if (currentHp <= 0)
+            Die();
+    }
+
+    protected virtual void Die(){}
+}
+";
+
+    static string PoolManagerCode() => @"
+using UnityEngine;
+using System.Collections.Generic;
+
+public class PoolManager : MonoBehaviour
+{
+    public static PoolManager Instance;
+
+    Dictionary<GameObject, Queue<GameObject>> pools = new();
+
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    public GameObject Spawn(GameObject prefab, Vector3 pos, Quaternion rot)
+    {
+        if (!pools.ContainsKey(prefab))
+            pools[prefab] = new Queue<GameObject>();
+
+        if (pools[prefab].Count == 0)
+            return Instantiate(prefab, pos, rot);
+
+        GameObject go = pools[prefab].Dequeue();
+        go.transform.SetPositionAndRotation(pos, rot);
+        go.SetActive(true);
+        return go;
+    }
+
+    public void Despawn(GameObject prefab, GameObject obj)
+    {
+        obj.SetActive(false);
+        pools[prefab].Enqueue(obj);
+    }
+}
+";
+
+    // ================= PLAYER =================
 
     static string PlayerController() => @"
 using UnityEngine;
@@ -237,12 +336,13 @@ public class PlayerMeleeCombo : MonoBehaviour
 }
 ";
 
+    // ================= ENEMY =================
+
     static string EnemyBase() => @"
 using UnityEngine;
 
-public class EnemyBase : MonoBehaviour
+public class EnemyBase : HealthBase
 {
-    public int hp = 3;
     public float speed = 2f;
     public Transform leftPoint;
     public Transform rightPoint;
@@ -250,7 +350,11 @@ public class EnemyBase : MonoBehaviour
     bool right = true;
     Rigidbody2D rb;
 
-    void Awake(){ rb = GetComponent<Rigidbody2D>(); }
+    protected override void Awake()
+    {
+        base.Awake();
+        rb = GetComponent<Rigidbody2D>();
+    }
 
     void Update()
     {
@@ -261,13 +365,14 @@ public class EnemyBase : MonoBehaviour
         if(!right && transform.position.x <= leftPoint.position.x) right = true;
     }
 
-    public void TakeDamage(int dmg)
+    public override void TakeDamage(int dmg)
     {
-        hp -= dmg;
-        if(hp <= 0) Destroy(gameObject);
+        base.TakeDamage(dmg);
     }
 }
 ";
+
+    // ================= CAMERA =================
 
     static string CameraFollow() => @"
 using UnityEngine;
@@ -285,6 +390,8 @@ public class SimpleCameraFollow : MonoBehaviour
     }
 }
 ";
+
+    // ================= SETUP =================
 
     static string GameSetup() => @"
 using UnityEngine;
