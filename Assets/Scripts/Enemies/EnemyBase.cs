@@ -1,41 +1,40 @@
-
 using UnityEngine;
 
-public class EnemyBase : MonoBehaviour
+public class EnemyBase : HealthBase
 {
-    public int hp = 3;
+    [Header("Movement")]
     public float speed = 2f;
     public Transform leftPoint;
     public Transform rightPoint;
 
-    bool right = true;
-    Rigidbody2D rb;
+    protected bool movingRight = true;
+    protected Rigidbody2D rb;
 
-    void Awake()
+    protected virtual void Awake()
     {
+        base.Awake();
         rb = GetComponent<Rigidbody2D>();
     }
 
-    void Update()
+    protected virtual void Update()
     {
         Patrol();
     }
 
-    void Patrol()
+    protected void Patrol()
     {
-        float dir = right ? 1 : -1;
+        float dir = movingRight ? 1 : -1;
         rb.linearVelocity = new Vector2(dir * speed, rb.linearVelocity.y);
 
-        if (right && transform.position.x >= rightPoint.position.x)
-            right = false;
+        if (movingRight && transform.position.x >= rightPoint.position.x)
+            movingRight = false;
 
-        if (!right && transform.position.x <= leftPoint.position.x)
-            right = true;
+        if (!movingRight && transform.position.x <= leftPoint.position.x)
+            movingRight = true;
     }
 
-    public void TakeDamage(int dmg)
+    public override void TakeDamage(int dmg)
     {
-        hp -= dmg;
-        if (hp <= 0) Destroy(gameObject);
+        base.TakeDamage(dmg);
     }
 }
