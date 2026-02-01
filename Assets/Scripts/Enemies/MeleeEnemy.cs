@@ -52,5 +52,12 @@ public class MeleeEnemy : EnemyBase
 
         // Aqu� luego puedes conectar da�o al player
         Debug.Log("Melee Enemy Attacks!");
+
+        PlayerHealth ph = player.GetComponent<PlayerHealth>();
+        if (ph)
+        {
+            ph.TakeDamage(damage);
+        }
+
     }
 }
