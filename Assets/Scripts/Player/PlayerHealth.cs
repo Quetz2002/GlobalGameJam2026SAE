@@ -6,6 +6,19 @@ public class PlayerHealth :HealthBase
     public float invincibilityDuration = 1.0f;
     private bool isInvincible = false;
 
+    [Header("Armor Settings")]
+    [SerializeField] private bool hasArmor = false;
+    [SerializeField] private Sprite armoredSprite;
+
+    public void EquipArmor()
+    {
+        hasArmor = true;
+        if (armoredSprite != null)
+        {
+            GetComponent<SpriteRenderer>().sprite = armoredSprite;
+        }
+    }
+
     public override void TakeDamage(int amount)
     {
         if (isInvincible) return;

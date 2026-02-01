@@ -154,7 +154,7 @@ MonoBehaviour:
   playerPrefab: {fileID: 1664337528239793153, guid: c68ecf3631ec8c74abc28fb9b5f8f1b6, type: 3}
   groundPrefab: {fileID: 953375474408181813, guid: c2809195ef0cec348917bf754aaea257, type: 3}
   platformPrefab: {fileID: 953375474408181813, guid: c2809195ef0cec348917bf754aaea257, type: 3}
-  enemyPrefab: {fileID: 4065254397228276642, guid: aad38aedd45a5534ca83a0ee8c6d05a8, type: 3}
+  enemyPrefab: {fileID: 4065254397228276642, guid: 851e835910e71c342a314a6bd5fdf1f3, type: 3}
   enemiesPerSection: 2
 --- !u!4 &394789998
 Transform:
